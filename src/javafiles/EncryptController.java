@@ -1,5 +1,10 @@
 package javafiles;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import javafiles.ModularAlgebra.Polynomials;
 
@@ -8,11 +13,12 @@ public class EncryptController {
     /*       Stopwatch timer = new Stopwatch();*/
     /*      System.Windows.Forms.OpenFileDialog ofdForIn = new OpenFileDialog();*/
     /*       System.Windows.Forms.OpenFileDialog ofdForOut = new OpenFileDialog();*/
-    // Random random;
+    Random random;
        /* RNGCryptoServiceProvider generator = new RNGCryptoServiceProvider();*/
    private String[] keyInHex;
    private String[][] permTable;
    private byte[] key;
+    private Object sfd;
 
     public EncryptController() {
 //                    InitializeComponent();
@@ -56,14 +62,10 @@ public class EncryptController {
         }
     
     
-        /**
-         * @param KeysSet - znachenie poley s kluchami
-         * @param Substitution - znachenie poley s paneli Substitution
-         */
-        private boolean substitutionExecute(KeysSet ks,Substitution subs)
-        {
-            TimerMonitor.getInstance().start();
-            String[][] result = Polynomials.getTablePlusAdditiveComponent(
+    
+    public String[][] getSubstitutionMatrix(Substitution subs){
+    
+    return Polynomials.getTablePlusAdditiveComponent(
                 Polynomials.productTableMatrix(
                     Polynomials.getTableOfMultiplicativelyInverseSums(
                         Polynomials.getTableOfMultiplicativelyInverse(
@@ -72,6 +74,21 @@ public class EncryptController {
                         subs.getAdditive().getAlpha()),
                     Polynomials.generateMatrixGalois(subs.getMatrix().getOmega(), subs.getMatrix().getFi())),
                 subs.getAdditive().getBeta());
+    }
+    
+    
+        /**
+         * @param KeysSet - znachenie poley s kluchami
+         * @param Substitution - znachenie poley s paneli Substitution
+         */
+   
+    
+        private boolean substitutionExecute(KeysSet ks,Substitution subs)
+        {
+            TimerMonitor.getInstance().start();
+           
+            String [][]result =  getSubstitutionMatrix(subs);
+            
             String keyHex = ks.getKeys()[0] + ks.getKeys()[1] + ks.getKeys()[2] + ks.getKeys()[3];
             String[] s = new String[keyHex.length()];
             for (int i = 0; i < s.length; i++)
@@ -120,36 +137,37 @@ public class EncryptController {
             
             return true;
         }
+//
+//        private void Mode_Checked(object sender, RoutedEventArgs e)
+//        {
+//            if (((System.Windows.Controls.RadioButton)sender).Name == "genMode")
+//            {
+//                genBox.IsEnabled = true;
+//                loadBox.IsEnabled = false;
+//            }
+//            else
+//            {
+//                genBox.IsEnabled = false;
+//                loadBox.IsEnabled = true;
+//            }
+//        }
 
-        private void Mode_Checked(object sender, RoutedEventArgs e)
+        private void keyGenerate(int keySize)
         {
-            if (((System.Windows.Controls.RadioButton)sender).Name == "genMode")
-            {
-                genBox.IsEnabled = true;
-                loadBox.IsEnabled = false;
-            }
-            else
-            {
-                genBox.IsEnabled = false;
-                loadBox.IsEnabled = true;
-            }
-        }
-
-        private void Button_Click_1(object sender, RoutedEventArgs e)
-        {
+            List<String> keys = new ArrayList<>();
             for (int i = 0; i < 4; i++)
             {
-                System.Windows.Controls.TextBox tbs = (System.Windows.Controls.TextBox)
-                         LogicalTreeHelper.FindLogicalNode(keyBox, "t" + i.ToString());
-                tbs.Text = "";
+               keys.add("");
             }
-            key = new byte[int.Parse(keySize.SelectedItem.ToString())];
+            key = new byte[keySize];
+            
             generator.GetNonZeroBytes(key);
-            Random rand = new Random(new Random(4).Next(0, 7));
+            
+            Random rand = new Random(new Random(4).nextInt(7));
 
             for (int i = 0; i < key.length; i++)
             {
-                int temp = rand.Next(0, 8);
+                int temp = rand.nextInt(8);
                 if ((key[i] & (byte)Math.pow(2, temp)) == (byte)Math.pow(2, temp))
                 {
                     key[i] = 1;
@@ -166,7 +184,7 @@ public class EncryptController {
                 keyFragment += key[i - 1];
                 if (i % 4 == 0)
                 {
-                    keyInHex[i / 4 - 1] = String.format("{0:X}", Polynomials.fromBinToDec(keyFragment));
+                    keyInHex[i / 4 - 1] = String.format("%05X", Polynomials.fromBinToDec(keyFragment)&0xFFFFF);
                     keyFragment = "";
                 }
             }
@@ -175,12 +193,10 @@ public class EncryptController {
             for (int i = 1; i <= keyInHex.length; i++)
             {
                 keyFragment += keyInHex[i - 1];
-                if (keyFragment.length == 16)
+                if (keyFragment.length() == 16)
                 {
-
-                    System.Windows.Controls.TextBox tbs = (System.Windows.Controls.TextBox)
-                         LogicalTreeHelper.FindLogicalNode(keyBox, "t" + ((counter / 2).ToString()));
-                    tbs.Text += keyFragment;
+                    
+                    keys.set(counter / 2, keys.get(counter / 2)+keyFragment);
                     keyFragment = "";
                     counter++;
                 }
@@ -188,61 +204,57 @@ public class EncryptController {
             key = fromHexToBin(keyInHex);
         }
 
-        private void Button_Click_2(object sender, RoutedEventArgs e)
+        private void keySave(String path, KeysSet ks) throws IOException
         {
-            System.Windows.Forms.SaveFileDialog sfd = new SaveFileDialog();
-            sfd.Filter = "txt files (*.txt)|*.txt";
-            if (sfd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-            {
                 String temp = "";
                 for (int i = 0; i < 4; i++)
                 {
-                    System.Windows.Controls.TextBox tbs = (System.Windows.Controls.TextBox)
-                         LogicalTreeHelper.FindLogicalNode(keyBox, "t" + i.ToString());
-                    if (tbs.Text == "")
+                    String currentKey = ks.getKeys()[i];
+                    if (currentKey.isEmpty())
                     {
                         break;
                     }
                     else
                     {
-                        temp += tbs.Text;
+                        temp += currentKey;
                     }
                 }
-                System.IO.File.Create(sfd.FileName).Close();
-                System.IO.File.WriteAllText(sfd.FileName, temp);
-            }
+
+                Files.write(new File(path).toPath(),Arrays.asList(ks.getKeys()) ,StandardOpenOption.CREATE);
+            
         }
 
-        private void Button_Click_3(object sender, RoutedEventArgs e)
+        private void keyLoad(String path) throws IOException
         {
             List<String> ll = new ArrayList<>();
-            System.Windows.Forms.OpenFileDialog ofd = new OpenFileDialog();
-            ofd.Filter = "txt files (*.txt)|*.txt";
-            if (ofd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-            {
+            List<String> keys = new ArrayList<>();
+                    
+           
                 for (int i = 0; i < 4; i++)
                 {
-                    System.Windows.Controls.TextBox tbs = (System.Windows.Controls.TextBox)
-                             LogicalTreeHelper.FindLogicalNode(keyBox, "t" + i.ToString());
-                    tbs.Text = "";
+                    keys.add("");
                 }
-                String temp = System.IO.File.ReadAllText(ofd.FileName);
-                for (int i = 1; i <= temp.length; i++)
+                
+                
+                String temp = "";
+                
+                for(String str:Files.readAllLines(new File(path).toPath())){
+                    temp+= str+"\n";
+                }
+                for (int i = 1; i <= temp.length(); i++)
                 {
                     if (i == 129)
                     {
                         break;
                     }
-                    System.Windows.Controls.TextBox tbs = (System.Windows.Controls.TextBox)
-                         LogicalTreeHelper.FindLogicalNode(keyBox, "t" + (((i - 1) / 32).ToString()));
-                    tbs.Text += temp[i - 1];
+                    keys.set((i - 1) / 32, temp.charAt(i-1)+"");
                 }
-                key = new byte[temp.length * 4];
-                keyPath.Text = ofd.FileName;
+                key = new byte[temp.length() * 4];
+                //keyPath.Text = ofd.FileName;
                 ll.add("1111");
-                for (int i = 0; i < temp.length; i++)
+                for (int i = 0; i < temp.length(); i++)
                 {
-                    ll.add(String.valueOf(Integer.valueOf(temp[i].ToString(), 16), 2));
+                    ll.add(temp.charAt(i)+"");
                 }
                 Polynomials.addZeros(ll);
                 ll.remove(0);
@@ -250,7 +262,7 @@ public class EncryptController {
                 {
                     for (int j = 0; j < 4; j++)
                     {
-                        if (ll[i][j] == '1')
+                        if ((ll.get(i).charAt(j)+"").contentEquals("1"))
                         {
                             key[i * 4 + j] = 1;
                         }
@@ -260,19 +272,18 @@ public class EncryptController {
                         }
                     }
                 }
-            }
         }
 
-        private void TabItem_GotFocus(object sender, RoutedEventArgs e)
-        {
-            this.SizeToContent = System.Windows.SizeToContent.WidthAndHeight;
-        }
+//        private void TabItem_GotFocus(object sender, RoutedEventArgs e)
+//        {
+//            this.SizeToContent = System.Windows.SizeToContent.WidthAndHeight;
+//        }
 
         private void powPoli_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             text_0.Items.Clear();
-            String[] poli = Polynomials.GetIrreduciblePolinomialsArray(
-                byte.Parse(powPoli.SelectedItem.ToString()), true);
+            String[] poli = Polynomials.getIrreduciblePolinomialsArray(
+                Byte.valueOf(powPoli.SelectedItem.ToString()), true);
             for (int i = 0; i < poli.length; i++)
             {
                 text_0.Items.add(poli[i]);
@@ -284,18 +295,18 @@ public class EncryptController {
         {
             if (text_0.SelectedItem != null)
             {
-                int a = (int)Math.pow(2, Polynomials.CountOfDigits(
+                int a = (int)Math.pow(2, Polynomials.countOfDigits(
                   (uint)Polynomials.fromBinToDec(text_0.SelectedItem.ToString()))) / 2;
                 text_1.Items.Clear();
                 if (text_0.SelectedItem != null)
                 {
                     String poli = text_0.SelectedItem.ToString();
                     for (int i = 2; i < (int)Math.pow(2,
-                        Polynomials.CountOfDigits((uint)Polynomials.fromBinToDec(poli))) / 2; i++)
+                        Polynomials.countOfDigits((uint)Polynomials.fromBinToDec(poli))) / 2; i++)
                     {
                         if (Polynomials.IsElementPrimitive(i, Polynomials.fromBinToDec(poli)))
                         {
-                            text_1.Items.add(Polynomials.FromDecToBin((uint)i));
+                            text_1.Items.add(Polynomials.fromDecToBin((uint)i));
                         }
                     }
                     text_1.SelectedIndex = 0;
@@ -307,8 +318,8 @@ public class EncryptController {
         private void powMatrix_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             text_2.Items.Clear();
-            String[] poli = Polynomials.GetIrreduciblePolinomialsArray(
-                byte.Parse(powMatrix.SelectedItem.ToString()), true);
+            String[] poli = Polynomials.getIrreduciblePolinomialsArray(
+                Byte.valueOf(powMatrix.SelectedItem.ToString()), true);
             for (int i = 0; i < poli.length; i++)
             {
                 text_2.Items.add(poli[i]);
@@ -323,114 +334,67 @@ public class EncryptController {
             {
                 String poli = text_2.SelectedItem.ToString();
                 for (int i = 2; i < (int)Math.pow(2,
-                    Polynomials.CountOfDigits((uint)Polynomials.fromBinToDec(text_2.SelectedItem.ToString())))/2; i++)
+                    Polynomials.countOfDigits((uint)Polynomials.fromBinToDec(text_2.SelectedItem.ToString())))/2; i++)
                 {
-                    text_3.Items.add(Polynomials.FromDecToBin((uint)i));
+                    text_3.Items.add(Polynomials.fromDecToBin((uint)i));
                 }
                 text_3.SelectedIndex = 0;
             }
 
         }
+        
+        
 
-        private void Button_Click_5(object sender, RoutedEventArgs e)
+        private void substitutionReportMatrix(Substitution sub)
         {
-            String[,] result = Polynomials.getTablePlusAdditiveComponent(
-                Polynomials.productTableMatrix(
-                    Polynomials.getTableOfMultiplicativelyInverseSums(
-                        Polynomials.getTableOfMultiplicativelyInverse(
-                            Polynomials.fromBinToDec(text_1.SelectedItem.ToString()),
-                            Polynomials.fromBinToDec(text_0.SelectedItem.ToString())),
-                        text_4.Text),
-                    Polynomials.generateMatrixGalois(text_3.SelectedItem.ToString(), text_2.SelectedItem.ToString())),
-                text_5.Text);
+            String[][] result = getSubstitutionMatrix(sub);
 
-            Form f = new Form();
-            DataGridView dgv = new DataGridView();
-            f.Controls.Clear();
-            f.Show();
-            f.Controls.add(dgv);
-            dgv.RowCount = (int)Math.sqrt(result.length);
-            dgv.ColumnCount = (int)Math.sqrt(result.length);
-            f.Show();
-            int s = 0;
+            String [][] report = new String[(int)Math.sqrt(result.length)][(int)Math.sqrt(result.length)];
+            
             for (int i = 0; i < (int)Math.sqrt(result.length); i++)
             {
                 for (int j = 0; j < (int)Math.sqrt(result.length); j++)
                 {
-                    String temper = String.format(" {0:X}", Polynomials.fromBinToDec(result[i, j]));
-                    dgv[j, i].Value = temper;
-                    s = i % 2;
-                    if (s == 0)
-                    {
-                        dgv.Rows[i].Cells[j].Style.BackColor = System.Drawing.Color.LightGreen;
-                    }
-                }
-                dgv.Rows[i].HeaderCell.Value = dgv.Columns[i].HeaderCell.Value = String.format("{0:X}", i);
-            }
-            dgv.AutoResizeColumns();
-            dgv.AutoResizeRows();
-            dgv.AutoSize = true;
-            f.AutoSize = true;
+                    String temper = String.format("%05X", Polynomials.fromBinToDec(result[i][j])&0xFFFFF);
+                    report[i][j] = temper;
 
-            f.AutoScroll = true;
-            f.MaximumSize = new System.Drawing.Size(1000, 700);
-            f.Size = new System.Drawing.Size(dgv.Width, dgv.Height);
+                }
+            }
+
         }
 
-        private void Button_Click_4(object sender, RoutedEventArgs e)
+        private void premutationReportMatrix(int premSize)
         {
-            int segmetCount = int.Parse(permSize.SelectedItem.ToString());
-            Form f = new Form();
-            DataGridView gridPerm = new DataGridView();
-            f.Controls.Clear();
-            f.Show();
-            f.Controls.add(gridPerm);
-            gridPerm.ColumnCount = gridPerm.RowCount = (int)Math.sqrt(permTable.length);
-            int s = 0;
+            int segmetCount = premSize;
+            
+            String[][] report = new String[(int)Math.sqrt(permTable.length)][(int)Math.sqrt(permTable.length)];
+            
             for (int i = 0; i < (int)Math.sqrt(permTable.length); i++)
             {
-                if ((i % 2) == 0)
-                {
-                    gridPerm.Rows[i].Cells[0].Style.BackColor = System.Drawing.Color.LightGreen;
-                }
                 for (int j = 0; j < (int)Math.sqrt(permTable.length); j++)
                 {
-                    gridPerm[j, i].Value = permTable[i, j];
-                    s = i % 2;
-                    if (s == 0)
-                    {
-                        gridPerm.Rows[i].Cells[j].Style.BackColor = System.Drawing.Color.LightGreen;
-                    }
+                    report[i][j] = permTable[i][j];
                 }
-
-                gridPerm.Rows[i].HeaderCell.Value = gridPerm.Columns[i].HeaderCell.Value = String.format("{0:X}", i);
             }
-            gridPerm.AutoResizeColumns();
-            gridPerm.AutoResizeRows();
-            gridPerm.AutoSize = true;
-            f.AutoSize = true;
-            f.AutoScroll = true;
-            f.MaximumSize = new System.Drawing.Size(1000, 700);
-            f.Size = new System.Drawing.Size(gridPerm.Width, gridPerm.Height);
         }
 
-        private void Button_Click_6(object sender, RoutedEventArgs e)
+        private void premutationExecute(int premSize)
         {
-            timer.Start();
-            random = new Random(int.Parse((String.valueOf(Integer.valueOf(keyInHex[3], 16), 2))));
-            int segmetCount = int.Parse(permSize.SelectedItem.ToString());
+            TimerMonitor.getInstance().start();
+            random = new Random(Integer.valueOf(keyInHex[3]));
+            int segmetCount = premSize;
             DataGridView gridPerm = new DataGridView();
             gridPerm.RowCount = gridPerm.ColumnCount = segmetCount;
             gridPerm.Height = gridPerm.Width = 3;
             for (int i = 0; i < segmetCount; i++)
             {
-                gridPerm[0, i].Value = String.format("{0:X}", random.Next() % segmetCount);
+                gridPerm[0, i].Value = String.format("{0:X}", random.next() % segmetCount);
                 for (int j = 1; j < segmetCount; j++)
                 {
                     Boolean m = true;
                     do
                     {
-                        int temper = random.Next() % segmetCount;
+                        int temper = random.next() % segmetCount;
                         int d = 0;
                         for (; d < j; d++)
                         {
@@ -458,7 +422,7 @@ public class EncryptController {
                     permTable[i, j] = gridPerm[j, i].Value.ToString();
                 }
             }
-            int countPow = Polynomials.CountOfDigits(uint.Parse(permSize.SelectedItem.ToString())) - 1;
+            int countPow = Polynomials.countOfDigits(uint.Parse(permSize.SelectedItem.ToString())) - 1;
             int blockSize = key.length / int.Parse(permSize.SelectedItem.ToString());
             String lastKey = "", tkey = "";
             for (int i = 0; i < countPow; i++)
@@ -492,117 +456,116 @@ public class EncryptController {
                 }
                 summBytes = (summBytes ^ int.Parse(tempByte));
             }
-            timer.Stop();
-            this.Title = timer.ElapsedMilliseconds.ToString();
-            timer.Reset();
+            TimerMonitor.getInstance().stop();
+
         }
 
-        private void Shift_Click(object sender, RoutedEventArgs e)
+        private void shift()
         {
-            timer.Start();
-            int blockSize = Polynomials.CountOfDigits((uint)(key.length / 2)) - 1;
+            TimerMonitor.getInstance().start();
+            int blockSize = Polynomials.countOfDigits(new UnsignedInteger(key.length / 2)) - 1;
             String lastKey = "", tkey = "";
             for (int i = 0; i < blockSize; i++)
             {
-                tkey += key[key.length - 1 - i].ToString();
+                tkey += key[key.length - 1 - i]+"";
             }
 
-            for (int i = 0; i < tkey.length; i++)
+            for (int i = 0; i < tkey.length(); i++)
             {
-                lastKey += tkey[tkey.length - 1 - i].ToString();
+                lastKey += tkey.charAt(tkey.length() - 1 - i)+"";
             }
-            if (lastKey[lastKey.length - 1] == '0')
+            if ((lastKey.charAt(lastKey.length() - 1)+"").contentEquals("0"))
             {
-                lastKey = (lastKey.Remove(lastKey.length - 1).Insert(lastKey.length - 2, "1"));
+                String s = lastKey.substring(0,lastKey.length() - 1);
+                lastKey =s.substring(lastKey.length() - 2)+"1"+s.substring(lastKey.length() - 1);
             }
             int offset = Polynomials.fromBinToDec(lastKey);
             List<String> keyList = new ArrayList<>();
             for (int i = 0; i < key.length; i++)
             {
-                keyList.add(key[i].ToString());
+                keyList.add(key[i]+"");
             }
             for (int i = 0; i < offset; i++)
             {
-                String character = keyList[0];
+                String character = keyList.get(0);
                 keyList.remove(0);
                 keyList.add(character);
             }
             for (int i = 0; i < key.length; i++)
             {
-                key[i] = byte.Parse(keyList[i]);
+                key[i] = Byte.valueOf(keyList.get(0));
             }
-            timer.Stop();
-            this.Title = timer.ElapsedMilliseconds.ToString();
-            timer.Reset();
+            TimerMonitor.getInstance().stop();
+
         }
         
-        private void InputFile_Click(object sender, RoutedEventArgs e)
+//        private void InputFile_Click(object sender, RoutedEventArgs e)
+//        {
+//            if (ofdForIn.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+//            {
+//                inFile.Text = ofdForIn.FileName;
+//            }
+//        }
+//        private void OutputFile_Click(object sender, RoutedEventArgs e)
+//        {
+//            if (ofdForOut.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+//            {
+//                outFile.Text = ofdForOut.FileName;
+//            }
+//        }
+        private void finish(String path) throws IOException
         {
-            if (ofdForIn.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-            {
-                inFile.Text = ofdForIn.FileName;
-            }
-        }
-        private void OutputFile_Click(object sender, RoutedEventArgs e)
-        {
-            if (ofdForOut.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-            {
-                outFile.Text = ofdForOut.FileName;
-            }
-        }
-        private void Finish(object sender, RoutedEventArgs e)
-        {
-            timer.Start();
-            byte[] text = System.IO.File.ReadAllBytes(ofdForIn.FileName);
-            List<byte> l = new List<byte>(), textInBit = new List<byte>();
-            List<char> res = new List<char>();
+            TimerMonitor.getInstance().start();
+            byte[] text = Files.readAllBytes(new File(path).toPath());
+            List<Byte> l = new ArrayList<>(), textInBit = new ArrayList<Byte>();
+            List<Character> res = new ArrayList<>();
             for (int i = 0; i < text.length; i++)
             {
                 l.add(text[i]);
             }
             while ((l.size() % key.length) != 0)
             {
-                l.add(32);
+                l.add(new Integer(32).byteValue());
             }
             for (int i = 0; i < l.size(); i++)
             {
-                String tempp = Polynomials.FromDecToBin(l[i]);
-                for (int j = tempp.length; j < 8; j++)
+                String tempp = Polynomials.fromDecToBin(new UnsignedInteger(l.get(i)));
+                for (int j = tempp.length(); j < 8; j++)
                 {
-                    tempp = tempp.Insert(0, "0");
+                    tempp = "0" + tempp;
                 }
                 for (int j = 0; j < 8; j++)
                 {
-                    if (tempp[j] == '1')
+                    if ((tempp.charAt(i)+"").contentEquals("1"))
                     {
-                        textInBit.add(1);
+                        textInBit.add(new Integer(1).byteValue());
                     }
                     else
                     {
-                        textInBit.add(0);
+                        textInBit.add(new Integer(0).byteValue());
                     }
                 }
             }
             for (int i = 0; i < textInBit.size(); i++)
             {
-                if (textInBit[i] == key[i % key.length])
+                if (textInBit.get(i) == key[i % key.length])
                 {
-                    textInBit[i] = 0;
+                    textInBit.set(i, new Integer(0).byteValue());
                 }
                 else
                 {
-                    textInBit[i] = 1;
+                    textInBit.set(i, new Integer(1).byteValue());
                 }
             }
-            l.Clear();
+            l.clear();
             for (int i = 0; i < textInBit.size() / 8; i++)
             {
                 String a = "";
                 for (int j = 0; j < 8; j++)
                 {
-                    a += textInBit[i * 8 + j];
+                    a += textInBit.get(i * 8 + j);
                 }
-                res.add(Convert.ToChar((byte)Polynomials.fromBinToDec(a)));
+                res.add(new Cha(byte)Polynomials.fromBinToDec(a)).c);
             }
             byte[] b = new byte[res.size()];
             for (int i = 0; i < b.length; i++)
@@ -610,11 +573,19 @@ public class EncryptController {
                 b[i] = Convert.ToByte(res[i]);
             }
             System.IO.File.WriteAllBytes(ofdForOut.FileName, b);
-            timer.Stop();
+            TimerMonitor.getInstance().stop();
             this.Title = timer.ElapsedMilliseconds.ToString();
             timer.Reset();
         }
    
-   
+        public static byte[] stringToBytesASCII(String str) {
+ char[] buffer = str.toCharArray();
+ byte[] b = new byte[buffer.length];
+ for (int i = 0; i < b.length; i++) {
+  b[i] = (byte) buffer[i];
+ }
+ return b;
+}
 
+   
 }
