@@ -327,16 +327,15 @@ public class EncryptController {
             text_2.SelectedIndex = 0;
         }
 
-        private void text_2_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private List<String> getNew(boolean isPoliOmegaSelected)
         {
-            text_3.Items.Clear();
-            if (text_2.SelectedItem != null)
+           List<String> text_3=new ArrayList<>();
+            if (isPoliOmegaSelected)
             {
-                String poli = text_2.SelectedItem.ToString();
                 for (int i = 2; i < (int)Math.pow(2,
                     Polynomials.countOfDigits((uint)Polynomials.fromBinToDec(text_2.SelectedItem.ToString())))/2; i++)
                 {
-                    text_3.Items.add(Polynomials.fromDecToBin((uint)i));
+                    text_3.add(Polynomials.fromDecToBin(new UnsignedInteger(i)));
                 }
                 text_3.SelectedIndex = 0;
             }
@@ -513,10 +512,10 @@ public class EncryptController {
 //                outFile.Text = ofdForOut.FileName;
 //            }
 //        }
-        private void finish(String path) throws IOException
+        private void finish(String inputPath,String outputPath) throws IOException
         {
             TimerMonitor.getInstance().start();
-            byte[] text = Files.readAllBytes(new File(path).toPath());
+            byte[] text = Files.readAllBytes(new File(inputPath).toPath());
             List<Byte> l = new ArrayList<>(), textInBit = new ArrayList<Byte>();
             List<Character> res = new ArrayList<>();
             for (int i = 0; i < text.length; i++)
@@ -565,17 +564,23 @@ public class EncryptController {
                 {
                     a += textInBit.get(i * 8 + j);
                 }
-                res.add(new Cha(byte)Polynomials.fromBinToDec(a)).c);
+                res.add(new String(new byte[]{new Integer(Polynomials.fromBinToDec(a)).byteValue()}).charAt(0));
             }
-            byte[] b = new byte[res.size()];
+            Byte[] b = new Byte[res.size()];
             for (int i = 0; i < b.length; i++)
             {
-                b[i] = Convert.ToByte(res[i]);
+                b[i] = (res.get(i)+"").getBytes()[0];
             }
-            System.IO.File.WriteAllBytes(ofdForOut.FileName, b);
+            
+            List<String> out = new ArrayList<>();
+            for (Byte b1 : b) {
+                out.add(b+"");
+            }
+            
+            
+              Files.write(new File(outputPath).toPath(),out,StandardOpenOption.CREATE);
             TimerMonitor.getInstance().stop();
-            this.Title = timer.ElapsedMilliseconds.ToString();
-            timer.Reset();
+
         }
    
         public static byte[] stringToBytesASCII(String str) {
